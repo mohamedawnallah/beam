@@ -445,19 +445,44 @@ class TestGCSIO(unittest.TestCase):
       self.gcs.open(file_name, 'r+b')
 
   def test_delete(self):
+    # File path.
     file_name = 'gs://gcsio-test/delete_me'
     file_size = 1024
     bucket_name, blob_name = gcsio.parse_gcs_path(file_name)
+
     # Test deletion of non-existent file.
     bucket = self.client.get_bucket(bucket_name)
     self.gcs.delete(file_name)
 
+    # Insert a random file for testing.
     self._insert_random_file(self.client, file_name, file_size)
     self.assertTrue(blob_name in bucket.blobs)
 
+    # Deleting the file.
     self.gcs.delete(file_name)
-
     self.assertFalse(blob_name in bucket.blobs)
+
+    # Now test deleting a directory (prefix) with multiple files.
+    prefix = 'gs://gcsio-test/directory_to_delete/'
+    file_names = [f"{prefix}file1", f"{prefix}file2", f"{prefix}file3"]
+    blobs = [gcsio.parse_gcs_path(file_name) for file_name in file_names]
+
+    # Insert random files under the prefix.
+    for file_name in file_names:
+        self._insert_random_file(self.client, file_name, file_size)
+
+    # Verify the files exist before deletion
+    blobs_available = [blob.name for blob in bucket.list_blobs()]
+    for blob in blobs:
+        self.assertTrue(blob.name in blobs_available)
+
+    # Deleting the directory (all files under the prefix).
+    self.gcs.delete(prefix)
+
+    # Verify that the files are deleted.
+    blobs_available = [blob.name for blob in bucket.list_blobs()]
+    for blob in blobs:
+        self.assertFalse(blob.name in blobs_available)
 
   def test_copy(self):
     src_file_name = 'gs://gcsio-test/source'
